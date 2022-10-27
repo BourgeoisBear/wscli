@@ -234,7 +234,8 @@ func fnHandleMsg(pHdl *Handler, nType int, iRdr io.Reader, err error) bool {
 func main() {
 
 	const helpPrefix = `wscli
-	command-line interface to a websocket connection
+	Command-line interface to a websocket connection.
+	Ctrl-c to exit.
 
 COMMANDS
 

@@ -1,8 +1,12 @@
 # wscli
 command line interface to websockets for scriptable testing &amp; integration
 
-## Commands
+## Installation
+```
+go install -v github.com/BourgeoisBear/wscli
+```
 
+## Commands
 ```
 Connect to Websocket
 	\dial ws://127.0.0.1:8080/ws
