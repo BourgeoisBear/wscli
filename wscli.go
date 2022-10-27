@@ -54,16 +54,13 @@ func newFsm() *fsm {
 }
 
 func (pf *fsm) closeWait() {
-	if pf.pH == nil {
-		return
+	if pf.pH != nil {
+		err := pf.pH.Close()
+		fnErr("ws close", err)
+
+		pf.pH.Wait()
+		pf.pH = nil
 	}
-	err := pf.pH.Close()
-	fnErr("ws close", err)
-
-	pf.pH.Wait()
-	pf.pH = nil
-
-	pf.hdr = make(http.Header)
 	pf.resetMsg()
 }
 
@@ -93,13 +90,16 @@ func (pf *fsm) processLine(line []byte) {
 		if bytes.Equal(line, pf.msgEnd) {
 
 			// fmt.Printf("SEND %#v\n", string(pf.msg))
-			err := pf.pH.WriteMessage(TextMessage, pf.msg)
-			pf.resetMsg()
-			if err != nil {
-				fnErr("WS WRITE", err)
-				return
+			if pf.pH != nil {
+				err := pf.pH.WriteMessage(TextMessage, pf.msg)
+				if err != nil {
+					fnErr("WS WRITE", err)
+					return
+				}
+				fmt.Print("\x1b[96m", "SENT", "\x1b[0m\n")
 			}
-			fmt.Print("\x1b[96m", "SENT", "\x1b[0m\n")
+
+			pf.resetMsg()
 
 		} else {
 

@@ -1,5 +1,6 @@
 # wscli
 command line interface to websockets for scriptable testing &amp; integration
+![sample session][wscli_example.gif]
 
 ## Installation
 ```
