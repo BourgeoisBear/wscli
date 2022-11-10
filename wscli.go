@@ -152,9 +152,9 @@ func (pf *fsm) processLine(line []byte) {
 			return
 		}
 		pf.closeWait()
-		pC, _, err := Dial(string(line), pf.hdr)
+		pC, wsRsp, err := Dial(string(line), pf.hdr)
 		if err != nil {
-			fnErr("WS DIAL", err)
+			fnErr("WS DIAL ["+wsRsp.Status+"]", err)
 			return
 		}
 		pf.pH, err = StartHandler(pC, 10*time.Second, 0, 0, fnHandleMsg)
