@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+// TODO: message filtering
+
 func fnErrAbort(prfx string, err error) {
 	errfunc(prfx, err, true)
 }
@@ -43,6 +45,7 @@ type fsm struct {
 	msg      []byte
 	msgEnd   []byte
 	rxMsgEnd *regexp.Regexp
+	printTs  bool
 }
 
 func newFsm() *fsm {
@@ -157,7 +160,7 @@ func (pf *fsm) processLine(line []byte) {
 			fnErr("WS DIAL ["+wsRsp.Status+"]", err)
 			return
 		}
-		pf.pH, err = StartHandler(pC, 10*time.Second, 0, 0, fnHandleMsg)
+		pf.pH, err = StartHandler(pC, 10*time.Second, 0, 0, pf.PrintMsg)
 		if err != nil {
 			fnErr("WS HANDLER", err)
 			return
@@ -190,7 +193,7 @@ func (pf *fsm) processLine(line []byte) {
 }
 
 // websocket -> stdout
-func fnHandleMsg(pHdl *Handler, nType int, iRdr io.Reader, err error) bool {
+func (pf *fsm) PrintMsg(pHdl *Handler, nType int, iRdr io.Reader, err error) bool {
 
 	// exit on websocket error
 	if err != nil {
@@ -212,19 +215,27 @@ func fnHandleMsg(pHdl *Handler, nType int, iRdr io.Reader, err error) bool {
 		if pC := pHdl.GetConn(); pC != nil {
 			szFrom = pC.RemoteAddr().String()
 		}
-		now := time.Now().Round(0)
-		fmt.Print(
-			"\x1b[37m",
-			now.Format(time.RFC3339),
-			", RCV FROM ",
-			szFrom,
-			":\x1b[0m\n",
-		)
 
-		// message, line-by-line
-		lines := bytes.Split(bsMsg, []byte{'\n'})
-		for _, ln := range lines {
-			fmt.Println("\t\x1b[92m" + string(ln) + "\x1b[0m")
+		if pf.printTs {
+
+			// sender + timestamp
+			now := time.Now().Round(0)
+			fmt.Printf(
+				"\x1b[37m%s [%s]:\x1b[0m\n",
+				now.Format(time.RFC3339),
+				szFrom,
+			)
+
+			// color message
+			fmt.Print("\x1b[92m")
+		}
+
+		// raw output
+		os.Stdout.Write(bsMsg)
+
+		// reset color
+		if pf.printTs {
+			fmt.Print("\x1b[0m")
 		}
 	}
 
@@ -265,7 +276,9 @@ COMMANDS
 		Authorization:
 
 	Clear All Specified HTTP Headers
-		\hdrclr`
+		\hdrclr
+
+`
 
 	// HELP MESSAGE
 	var iWri io.Writer = os.Stdout
@@ -275,12 +288,20 @@ COMMANDS
 		flag.PrintDefaults()
 		fmt.Fprint(iWri, "\n")
 	}
+	fsm := newFsm()
+	flag.BoolVar(&fsm.printTs, "ts", false, "print message timestamps")
 	flag.Parse()
 
 	buf := make([]byte, 4096)
-	fsm := newFsm()
+
+	if wsConn := flag.Arg(0); (len(wsConn) > 0) && strings.HasPrefix(wsConn, "ws") {
+		fsm.processLine([]byte("\\dial " + wsConn))
+	}
 
 	for {
+
+		// TODO: readline library
+		// TODO: history completion
 
 		n, rdErr := os.Stdin.Read(buf)
 		if rdErr != nil && rdErr != io.EOF {
