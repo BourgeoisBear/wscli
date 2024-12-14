@@ -1,3 +1,4 @@
+// CLI for websocket interaction
 package main
 
 import (
@@ -9,6 +10,7 @@ import (
 	gws "github.com/gorilla/websocket"
 )
 
+// HandlerErr contains package sentinel errors
 type HandlerErr int
 
 const (
@@ -47,14 +49,17 @@ type Handler struct {
 
 type MsgReaderFunc func(pHdl *Handler, nType int, iRdr io.Reader, err error) bool
 
+// Dial returns a new websocket.Conn for the given websocket URL.
 func Dial(url string, hdr http.Header) (*gws.Conn, *http.Response, error) {
 	return gws.DefaultDialer.Dial(url, hdr)
 }
 
+// GetConn returns the Handler's underlying websocket.Conn.
 func (ss *Handler) GetConn() *gws.Conn {
 	return ss.wsConn
 }
 
+// Wait for Handler completion.
 func (ss *Handler) Wait() (errRdr, errPing error) {
 	// wait for readpump completion, capture exit err
 	if ss.chRdrDone != nil {
@@ -76,18 +81,20 @@ func (ss *Handler) Wait() (errRdr, errPing error) {
 	return
 }
 
+// Close Handler (without waiting for completion).
 func (ss *Handler) Close() error {
 	if ss.chCloseAll != nil {
 		close(ss.chCloseAll)
 	}
 	if ss.wsConn == nil {
 		return ErrNilWs
-	} else {
-		// in case deadlines aren't in use
-		return ss.wsConn.Close()
 	}
+
+	// in case deadlines aren't in use
+	return ss.wsConn.Close()
 }
 
+// WriteMessage to the Handler's websocket
 func (ss *Handler) WriteMessage(nType int, bsMsg []byte) error {
 
 	if ss.wsConn == nil {
@@ -105,6 +112,7 @@ func (ss *Handler) WriteMessage(nType int, bsMsg []byte) error {
 	return ss.wsConn.WriteMessage(nType, bsMsg)
 }
 
+// StartHandler creates 'read' and 'ping' message-pump goroutines
 func StartHandler(
 	pwsConn *gws.Conn,
 	pingInterval, readTimeout, writeTimeout time.Duration,
@@ -192,7 +200,7 @@ func StartHandler(
 	}
 
 	// mutexed writer for ping handler + deadline updating for recvd ping msg
-	pwsConn.SetPingHandler(func(szMsg string) error {
+	pwsConn.SetPingHandler(func(_ string) error {
 		if err := ss.WriteMessage(gws.PongMessage, nil); err != nil {
 			return err
 		}

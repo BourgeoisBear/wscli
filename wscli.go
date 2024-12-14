@@ -13,7 +13,12 @@ import (
 	"time"
 )
 
-// TODO: message filtering
+/*
+	TODO:
+		- message filtering
+		- \log change command
+		- readline + history
+*/
 
 func fnErrAbort(prfx string, err error) {
 	errfunc(prfx, err, true)
@@ -46,6 +51,7 @@ type fsm struct {
 	msgEnd   []byte
 	rxMsgEnd *regexp.Regexp
 	printTs  bool
+	logWri   io.Writer
 }
 
 func newFsm() *fsm {
@@ -193,7 +199,7 @@ func (pf *fsm) processLine(line []byte) {
 }
 
 // websocket -> stdout
-func (pf *fsm) PrintMsg(pHdl *Handler, nType int, iRdr io.Reader, err error) bool {
+func (pf *fsm) PrintMsg(pHdl *Handler, _ int, iRdr io.Reader, err error) bool {
 
 	// exit on websocket error
 	if err != nil {
@@ -231,6 +237,9 @@ func (pf *fsm) PrintMsg(pHdl *Handler, nType int, iRdr io.Reader, err error) boo
 		}
 
 		// raw output
+		if pf.logWri != nil {
+			pf.logWri.Write(bsMsg)
+		}
 		os.Stdout.Write(bsMsg)
 
 		// reset color
@@ -281,16 +290,29 @@ COMMANDS
 `
 
 	// HELP MESSAGE
-	var iWri io.Writer = os.Stdout
-	flag.CommandLine.SetOutput(iWri)
+	var iWriFlag io.Writer = os.Stdout
+	flag.CommandLine.SetOutput(iWriFlag)
 	flag.Usage = func() {
-		fmt.Fprint(iWri, helpPrefix)
+		fmt.Fprint(iWriFlag, helpPrefix)
 		flag.PrintDefaults()
-		fmt.Fprint(iWri, "\n")
+		fmt.Fprint(iWriFlag, "\n")
 	}
+
 	fsm := newFsm()
+	var szLogPath string
 	flag.BoolVar(&fsm.printTs, "ts", false, "print message timestamps")
+	flag.StringVar(&szLogPath, "log", "-", "output log file")
 	flag.Parse()
+
+	if szLogPath != "-" {
+		pfLog, eLog := os.OpenFile(szLogPath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0664)
+		if eLog != nil {
+			fnErrAbort("file open", eLog)
+			return
+		}
+		fsm.logWri = pfLog
+		defer pfLog.Close()
+	}
 
 	buf := make([]byte, 4096)
 
@@ -299,9 +321,6 @@ COMMANDS
 	}
 
 	for {
-
-		// TODO: readline library
-		// TODO: history completion
 
 		n, rdErr := os.Stdin.Read(buf)
 		if rdErr != nil && rdErr != io.EOF {
